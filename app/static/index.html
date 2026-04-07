@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kasten CI/CD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0a0d12;
+    --surface:   #0f1318;
+    --card:      #141920;
+    --border:    #1e2633;
+    --border2:   #2a3545;
+    --accent:    #e85d00;
+    --accent2:   #ff7c2a;
+    --blue:      #1a9fff;
+    --green:     #00c896;
+    --red:       #ff3b5c;
+    --yellow:    #ffc040;
+    --text:      #c8d8e8;
+    --text2:     #6e8aa0;
+    --text3:     #3a5068;
+    --mono:      'Share Tech Mono', monospace;
+    --sans:      'Exo 2', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── scanline overlay ─────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.07) 2px,
+      rgba(0,0,0,0.07) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── header ──────────────────────────────── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-mark::after {
+    content: '▶';
+    font-size: 10px;
+    color: white;
+    margin-left: 2px;
+  }
+  .logo-text {
+    font-family: var(--mono);
+    font-size: 16px;
+    letter-spacing: 3px;
+    color: white;
+    text-transform: uppercase;
+  }
+  .logo-text span { color: var(--accent); }
+  .header-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 2px;
+    border: 1px solid var(--border2);
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  #conn-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text2);
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text3);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.ok  { background: var(--green); }
+  .status-dot.err { background: var(--red); animation: none; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+
+  /* ── layout ──────────────────────────────── */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 32px 80px;
+  }
+
+  /* ── section label ───────────────────────── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── policy grid ─────────────────────────── */
+  .policy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .policy-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+  .policy-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .policy-card:hover {
+    border-color: var(--border2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .policy-card:hover::before { opacity: 1; }
+  .policy-card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 8px 32px rgba(232,93,0,0.15);
+  }
+  .policy-card.selected::before { opacity: 1; }
+
+  .policy-name {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: white;
+    margin-bottom: 6px;
+    word-break: break-all;
+  }
+  .policy-ns {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-bottom: 14px;
+    letter-spacing: 1px;
+  }
+  .policy-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+  .tag-action {
+    background: rgba(26,159,255,0.1);
+    color: var(--blue);
+    border: 1px solid rgba(26,159,255,0.2);
+  }
+  .tag-ondemand {
+    background: rgba(232,93,0,0.1);
+    color: var(--accent2);
+    border: 1px solid rgba(232,93,0,0.2);
+  }
+  .policy-last-run {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text2);
+  }
+  .policy-last-run span {
+    font-family: var(--mono);
+    color: var(--text);
+  }
+
+  /* ── detail panel ────────────────────────── */
+  .detail-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 48px;
+    overflow: hidden;
+    display: none;
+    animation: slideIn 0.2s ease;
+  }
+  .detail-panel.visible { display: block; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .panel-header-name {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: white;
+    flex: 1;
+  }
+  .panel-header-name small {
+    font-size: 11px;
+    color: var(--text3);
+    display: block;
+    margin-top: 2px;
+  }
+
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 14px 24px;
+    background: none;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+    position: relative;
+    transition: color 0.15s;
+    text-transform: uppercase;
+  }
+  .tab-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transition: transform 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent2); }
+  .tab-btn.active::after { transform: scaleX(1); }
+
+  .panel-body { padding: 24px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── run action tab ───────────────────────── */
+  .run-info {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.8;
+  }
+  .run-info strong { color: var(--text); }
+
+  /* ── export tab ───────────────────────────── */
+  .restore-points-list {
+    margin-bottom: 20px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .restore-point-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .restore-point-item:hover  { background: var(--surface); border-color: var(--border2); }
+  .restore-point-item.selected { border-color: var(--blue); background: rgba(26,159,255,0.05); }
+  .rp-radio {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border2);
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: border-color 0.15s;
+    position: relative;
+  }
+  .restore-point-item.selected .rp-radio {
+    border-color: var(--blue);
+  }
+  .restore-point-item.selected .rp-radio::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    background: var(--blue);
+    border-radius: 50%;
+  }
+  .rp-name  { font-family: var(--mono); font-size: 12px; color: var(--text); flex: 1; word-break: break-all; }
+  .rp-time  { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+  .profile-select-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .profile-card {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .profile-card:hover    { border-color: var(--border2); background: var(--surface); }
+  .profile-card.selected { border-color: var(--green); background: rgba(0,200,150,0.05); }
+  .profile-type {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .profile-name { font-family: var(--mono); font-size: 13px; color: var(--text); }
+
+  /* ── buttons ──────────────────────────────── */
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 12px 28px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--accent2);
+    box-shadow: 0 4px 16px rgba(232,93,0,0.4);
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border2);
+  }
+  .btn-secondary:not(:disabled):hover {
+    color: var(--text);
+    border-color: var(--text2);
+  }
+  .btn-export {
+    background: rgba(26,159,255,0.15);
+    color: var(--blue);
+    border: 1px solid rgba(26,159,255,0.3);
+  }
+  .btn-export:not(:disabled):hover {
+    background: rgba(26,159,255,0.25);
+    box-shadow: 0 4px 16px rgba(26,159,255,0.2);
+  }
+
+  /* ── action log ───────────────────────────── */
+  .action-log {
+    margin-top: 32px;
+  }
+  .log-entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 16px;
+    margin-bottom: 10px;
+    animation: slideIn 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .log-entry.export { border-left-color: var(--blue); }
+  .log-entry.success { border-left-color: var(--green); }
+  .log-entry.error   { border-left-color: var(--red); }
+
+  .log-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .log-kind  {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+  }
+  .log-name  { font-family: var(--mono); font-size: 12px; color: var(--text); flex: 1; }
+  .log-time  { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+  .log-state {
+    font-family: var(--mono);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .state-badge {
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .state-running  { background: rgba(255,192,64,0.15); color: var(--yellow); border: 1px solid rgba(255,192,64,0.3); }
+  .state-complete { background: rgba(0,200,150,0.15); color: var(--green);  border: 1px solid rgba(0,200,150,0.3); }
+  .state-failed   { background: rgba(255,59,92,0.15);  color: var(--red);    border: 1px solid rgba(255,59,92,0.3); }
+  .state-unknown  { background: rgba(110,138,160,0.15);color: var(--text2);  border: 1px solid var(--border2); }
+
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 1px;
+    transition: width 0.5s ease;
+  }
+  .log-entry.export .progress-fill { background: linear-gradient(90deg, var(--blue), #7dd4ff); }
+
+  /* ── empty states ─────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text3);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+
+  /* ── loading spinner ──────────────────────── */
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── toast ────────────────────────────────── */
+  #toast-container {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .toast {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 14px 20px;
+    border-radius: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    min-width: 280px;
+    animation: toastIn 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.error   { border-left: 3px solid var(--red); color: var(--red); }
+  .toast.info    { border-left: 3px solid var(--blue); }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ── confirm dialog ───────────────────────── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .overlay.visible { display: flex; }
+  .dialog {
+    background: var(--card);
+    border: 1px solid var(--border2);
+    border-top: 2px solid var(--accent);
+    border-radius: 4px;
+    padding: 32px;
+    max-width: 480px;
+    width: 90%;
+    animation: slideIn 0.2s ease;
+  }
+  .dialog h3 {
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: white;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .dialog p {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+  .dialog p code {
+    font-family: var(--mono);
+    color: var(--accent2);
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+  .dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+  /* ── cleanup tab ─────────────────────────── */
+  .cleanup-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 6px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .cleanup-item:hover { background: var(--surface); border-color: var(--border2); }
+  .cleanup-item.selected { border-color: rgba(255,59,92,0.4); background: rgba(255,59,92,0.05); }
+  .cleanup-item input[type=checkbox] { accent-color: var(--red); flex-shrink: 0; width:14px; height:14px; cursor:pointer; }
+  .cleanup-name  { font-family:var(--mono); font-size:12px; color:var(--text); flex:1; min-width:0; }
+  .cleanup-meta  { font-family:var(--mono); font-size:10px; color:var(--text3); margin-top:2px; }
+  .cleanup-badge { font-family:var(--mono); font-size:10px; padding:2px 7px; border-radius:2px; flex-shrink:0; }
+  .badge-snap    { background:rgba(26,159,255,0.1); color:var(--blue); border:1px solid rgba(26,159,255,0.2); }
+  .badge-export  { background:rgba(0,200,150,0.1); color:var(--green); border:1px solid rgba(0,200,150,0.2); }
+  .cleanup-time  { font-family:var(--mono); font-size:11px; color:var(--text2); flex-shrink:0; }
+
+  /* ── command output panel ────────────────── */
+  .cmd-panel {
+    background: #070a0e;
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--border2);
+    border-radius: 4px;
+    margin-top: 48px;
+    overflow: hidden;
+  }
+  .cmd-panel-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .cmd-panel-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text3);
+    text-transform: uppercase;
+    flex: 1;
+  }
+  .cmd-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .cmd-dot-r { background: #ff5f57; }
+  .cmd-dot-y { background: #ffbd2e; }
+  .cmd-dot-g { background: #28c840; }
+  .cmd-dots  { display: flex; gap: 5px; }
+  .cmd-clear {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text3);
+    background: none;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    padding: 3px 10px;
+    border-radius: 2px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .cmd-clear:hover { color: var(--text); border-color: var(--text3); }
+  .cmd-body {
+    padding: 16px;
+    min-height: 120px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .cmd-empty {
+    color: var(--text3);
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 24px 0;
+    text-align: center;
+  }
+  .cmd-entry { margin-bottom: 24px; animation: slideIn 0.2s ease; }
+  .cmd-entry:last-child { margin-bottom: 0; }
+  .cmd-prompt { color: var(--accent2); margin-bottom: 6px; font-size: 11px; }
+  .cmd-ts { color: var(--text3); margin-right: 8px; }
+  .cmd-yaml {
+    white-space: pre;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.025);
+    border-left: 2px solid var(--border2);
+    border-radius: 0 3px 3px 0;
+    overflow-x: auto;
+    color: #c8d8e8;
+  }
+  .yk { color: #7dd4ff; }
+  .yv { color: #a8e6a3; }
+  .ys { color: #ffd080; }
+  .yc { color: #3a5068; }
+  .cmd-response {
+    margin-top: 8px;
+    font-size: 11px;
+    padding-left: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cmd-response.ok  { color: var(--green); }
+  .cmd-response.err { color: var(--red); }
+
+
+  /* ── scrollbar ────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark"></div>
+  <div class="logo-text">KASTEN <span>CI/CD</span></div>
+  <div class="header-tag">ON-DEMAND TRIGGER</div>
+  <div class="header-right">
+    <div id="conn-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">CONNECTING</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- POLICIES -->
+  <div class="section-label">ON-DEMAND POLICIES</div>
+  <div class="policy-grid" id="policy-grid">
+    <div class="empty-state" style="grid-column:1/-1">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- DETAIL PANEL -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="panel-header">
+      <div class="panel-header-name">
+        <span id="panel-policy-name">-</span>
+        <small id="panel-policy-ns"></small>
+      </div>
+      <button class="btn btn-secondary" onclick="clearSelection()" style="padding:8px 16px;font-size:10px">✕ CLOSE</button>
+    </div>
+    <div class="panel-tabs">
+      <button class="tab-btn active" data-tab="run" onclick="switchTab('run',this)">▶ RUN ACTION</button>
+      <button class="tab-btn" data-tab="export" onclick="switchTab('export',this)">⬆ EXPORT ACTION</button>
+      <button class="tab-btn" data-tab="cleanup" onclick="switchTab('cleanup',this)">⊗ CLEANUP</button>
+    </div>
+    <div class="panel-body">
+
+      <!-- RUN TAB -->
+      <div class="tab-content active" id="tab-run">
+        <div class="run-info" id="run-info">
+          Loading policy details...
+        </div>
+        <button class="btn btn-primary" id="btn-run" onclick="confirmRunAction()">
+          <span>▶</span> TRIGGER RUN
+        </button>
+      </div>
+
+      <!-- EXPORT TAB -->
+      <div class="tab-content" id="tab-export">
+        <div style="margin-bottom:16px">
+          <div class="profile-select-label">① SELECT RESTORE POINT</div>
+          <div class="restore-points-list" id="restore-points-list">
+            <div class="empty-state"><div class="spinner"></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="profile-select-label">② SELECT TARGET LOCATION PROFILE</div>
+          <div class="profile-grid" id="profile-grid">
+            <div class="empty-state">Loading profiles...</div>
+          </div>
+        </div>
+        <button class="btn btn-export" id="btn-export" disabled onclick="confirmExportAction()">
+          <span>⬆</span> TRIGGER EXPORT
+        </button>
+      </div>
+
+      <!-- CLEANUP TAB -->
+      <div class="tab-content" id="tab-cleanup">
+        <div style="margin-bottom:14px;display:flex;align-items:center;gap:12px">
+          <div class="profile-select-label" style="margin:0">RESTORE POINTS WITH NO EXPIRY</div>
+          <label style="font-family:var(--mono);font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:auto">
+            <input type="checkbox" id="cleanup-show-exports" onchange="renderCleanupList()" style="accent-color:var(--accent)"> SHOW EXPORTS TOO
+          </label>
+        </div>
+        <div class="restore-points-list" id="cleanup-list" style="max-height:320px">
+          <div class="empty-state"><div class="spinner"></div></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
+          <button class="btn btn-secondary" style="font-size:10px;padding:8px 14px" onclick="toggleSelectAll()">SELECT ALL</button>
+          <button class="btn" id="btn-retire" disabled onclick="confirmRetire()"
+            style="background:rgba(255,59,92,0.15);color:var(--red);border:1px solid rgba(255,59,92,0.3);font-size:11px">
+            <span>⊗</span> RETIRE SELECTED
+          </button>
+          <span id="retire-count" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ACTION LOG -->
+  <div class="section-label">ACTION LOG</div>
+  <div id="action-log">
+    <div class="empty-state">
+      <div class="empty-icon">◈</div>
+      No actions triggered this session
+    </div>
+  </div>
+
+
+  <!-- COMMAND OUTPUT -->
+  <div class="section-label">COMMAND OUTPUT</div>
+  <div class="cmd-panel">
+    <div class="cmd-panel-header">
+      <div class="cmd-dots">
+        <div class="cmd-dot cmd-dot-r"></div>
+        <div class="cmd-dot cmd-dot-y"></div>
+        <div class="cmd-dot cmd-dot-g"></div>
+      </div>
+      <div class="cmd-panel-title">KASTEN API — YAML PAYLOAD LOG</div>
+      <button class="cmd-clear" onclick="clearCmdLog()">CLEAR</button>
+    </div>
+    <div class="cmd-body" id="cmd-body">
+      <div class="cmd-empty">◈ &nbsp; Waiting for actions...</div>
+    </div>
+  </div>
+
+
+</div>
+
+<!-- CONFIRM OVERLAY -->
+<div class="overlay" id="confirm-overlay">
+  <div class="dialog">
+    <h3 id="dialog-title">Confirm Action</h3>
+    <p id="dialog-body"></p>
+    <div class="dialog-actions">
+      <button class="btn btn-secondary" onclick="closeDialog()">CANCEL</button>
+      <button class="btn btn-primary" id="dialog-confirm" onclick="executeConfirmed()">CONFIRM</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<script>
+  // ── State ─────────────────────────────────────────────────────────────────
+  let selectedPolicy   = null;
+  let selectedRP       = null;
+  let selectedProfile  = null;
+  let pendingAction    = null;
+  let profiles         = [];
+  let activePollers    = {};
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    checkHealth();
+    loadPolicies();
+    loadProfiles();
+  });
+
+  async function checkHealth() {
+    try {
+      const r = await fetch('/api/health');
+      const d = await r.json();
+      document.getElementById('status-dot').className  = 'status-dot ok';
+      document.getElementById('status-text').textContent = 'CONNECTED';
+    } catch {
+      document.getElementById('status-dot').className  = 'status-dot err';
+      document.getElementById('status-text').textContent = 'OFFLINE';
+    }
+  }
+
+  // ── Policies ──────────────────────────────────────────────────────────────
+  async function loadPolicies() {
+    try {
+      const r = await fetch('/api/policies');
+      const d = await r.json();
+      renderPolicies(d.policies);
+    } catch (e) {
+      document.getElementById('policy-grid').innerHTML =
+        `<div class="empty-state" style="grid-column:1/-1">Failed to load policies: ${e.message}</div>`;
+    }
+  }
+
+  function renderPolicies(policies) {
+    const grid = document.getElementById('policy-grid');
+    if (!policies.length) {
+      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">◈</div>No on-demand policies found</div>';
+      return;
+    }
+    grid.innerHTML = policies.map(p => `
+      <div class="policy-card" onclick="selectPolicy(${JSON.stringify(p).replace(/"/g,'&quot;')})" data-name="${p.name}">
+        <div class="policy-name">${p.name}</div>
+        <div class="policy-ns">namespace: ${p.namespace}</div>
+        <div class="policy-meta">
+          <span class="tag tag-ondemand">ON-DEMAND</span>
+          ${(p.actions||[]).map(a => `<span class="tag tag-action">${typeof a === 'string' ? a : a.action || JSON.stringify(a)}</span>`).join('')}
+        </div>
+        ${p.lastRunTime ? `<div class="policy-last-run">Last run: <span>${new Date(p.lastRunTime).toLocaleString()}</span></div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function selectPolicy(policy) {
+    selectedPolicy = policy;
+    selectedRP     = null;
+    selectedProfile= null;
+
+    // highlight card
+    document.querySelectorAll('.policy-card').forEach(c => c.classList.remove('selected'));
+    const card = document.querySelector(`.policy-card[data-name="${policy.name}"]`);
+    if (card) card.classList.add('selected');
+
+    // update panel
+    document.getElementById('panel-policy-name').textContent = policy.name;
+    document.getElementById('panel-policy-ns').textContent   = `namespace: ${policy.namespace}`;
+    document.getElementById('detail-panel').classList.add('visible');
+
+    // populate run info
+    document.getElementById('run-info').innerHTML = `
+      <strong>Policy:</strong> ${policy.name}<br>
+      <strong>Namespace:</strong> ${policy.namespace}<br>
+      <strong>Actions:</strong> ${(policy.actions||[]).map(a=>typeof a==='string'?a:a.action||JSON.stringify(a)).join(', ') || 'backup'}<br>
+      ${policy.comment ? `<strong>Comment:</strong> ${policy.comment}<br>` : ''}
+      ${policy.lastRunTime ? `<strong>Last Run:</strong> ${new Date(policy.lastRunTime).toLocaleString()}` : '<em style="color:var(--text3)">Never run</em>'}
+    `;
+
+    // load restore points
+    loadRestorePoints(policy);
+    // pre-load cleanup list in background
+    loadCleanupPoints(policy);
+
+    // scroll panel into view
+    document.getElementById('detail-panel').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function clearSelection() {
+    selectedPolicy = null;
+    document.querySelectorAll('.policy-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('detail-panel').classList.remove('visible');
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'cleanup' && selectedPolicy) loadCleanupPoints(selectedPolicy);
+  }
+
+  // ── Restore Points ────────────────────────────────────────────────────────
+  async function loadRestorePoints(policy) {
+    const list = document.getElementById('restore-points-list');
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    try {
+      const r = await fetch(`/api/policies/${policy.namespace}/${policy.name}/restorepoints`);
+      const d = await r.json();
+      if (!d.restorePoints.length) {
+        list.innerHTML = '<div class="empty-state">No completed restore points found.<br>Trigger a run first.</div>';
+        return;
+      }
+      list.innerHTML = d.restorePoints.map(rp => `
+        <div class="restore-point-item"
+             onclick="selectRP(this, ${JSON.stringify(rp).split('"').join('&quot;')})"
+             data-id="${rp.id}">
+          <div class="rp-radio"></div>
+          <div style="flex:1;min-width:0">
+            <div class="rp-name">${rp.id}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px">ns: ${rp.namespace}${rp.appNamespace ? ' · app: '+rp.appNamespace : ''}</div>
+          </div>
+          <div class="rp-time">${new Date(rp.createdAt).toLocaleString()}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      list.innerHTML = `<div class="empty-state">Error loading restore points: ${e.message}</div>`;
+    }
+  }
+
+  function selectRP(el, rp) {
+    selectedRP = rp;
+    document.querySelectorAll('.restore-point-item').forEach(i => i.classList.remove('selected'));
+    el.classList.add('selected');
+    updateExportBtn();
+  }
+
+  // ── Profiles ──────────────────────────────────────────────────────────────
+  async function loadProfiles() {
+    try {
+      const r = await fetch('/api/profiles');
+      const d = await r.json();
+      profiles = d.profiles;
+      renderProfiles(profiles);
+    } catch (e) {
+      document.getElementById('profile-grid').innerHTML =
+        `<div class="empty-state">Error: ${e.message}</div>`;
+    }
+  }
+
+  function renderProfiles(profs) {
+    const grid = document.getElementById('profile-grid');
+    if (!profs.length) {
+      grid.innerHTML = '<div class="empty-state">No location profiles found</div>';
+      return;
+    }
+    grid.innerHTML = profs.map(p => `
+      <div class="profile-card" onclick="selectProfile(this,'${p.name}','${p.namespace}')"
+           data-name="${p.name}">
+        <div class="profile-type">${p.type}</div>
+        <div class="profile-name">${p.name}</div>
+      </div>
+    `).join('');
+  }
+
+  function selectProfile(el, name, ns) {
+    selectedProfile = { name, ns };
+    document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    updateExportBtn();
+  }
+
+  function updateExportBtn() {
+    document.getElementById('btn-export').disabled = !(selectedRP && selectedProfile);
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  function confirmRunAction() {
+    if (!selectedPolicy) return;
+    pendingAction = { type: 'run' };
+    document.getElementById('dialog-title').textContent  = 'TRIGGER RUN ACTION';
+    document.getElementById('dialog-body').innerHTML =
+      `Trigger a manual run of policy <code>${selectedPolicy.name}</code> in namespace <code>${selectedPolicy.namespace}</code>?<br><br>This will execute immediately.`;
+    document.getElementById('confirm-overlay').classList.add('visible');
+  }
+
+  function confirmExportAction() {
+    if (!selectedRP || !selectedProfile) return;
+    pendingAction = { type: 'export' };
+    document.getElementById('dialog-title').textContent  = 'TRIGGER EXPORT ACTION';
+    document.getElementById('dialog-body').innerHTML =
+      `Export restore point <code>${selectedRP.id}</code> to profile <code>${selectedProfile.name}</code>?<br><br>This will start an export job immediately.`;
+    document.getElementById('confirm-overlay').classList.add('visible');
+  }
+
+  function closeDialog() {
+    document.getElementById('confirm-overlay').classList.remove('visible');
+    pendingAction = null;
+  }
+
+  async function executeConfirmed() {
+    const action = pendingAction;
+    closeDialog();
+    if (!action) return;
+    if (action.type === 'run')    await triggerRun();
+    if (action.type === 'export') await triggerExport();
+    if (action.type === 'retire') await executeRetire();
+  }
+
+  async function triggerRun() {
+    try {
+      const r = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          policy_name: selectedPolicy.name,
+          policy_namespace: selectedPolicy.namespace
+        })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Unknown error');
+      toast(`Run action triggered: ${d.actionName}`, 'success');
+      addToLog({ kind: 'run', name: d.actionName, namespace: d.namespace });
+      appendCmdLog(
+        buildRunYaml(selectedPolicy.name, selectedPolicy.namespace, d.actionName),
+        `runaction/${d.actionName} created`,
+        false
+      );
+      pollAction(d.actionName, d.namespace, 'run');
+    } catch (e) {
+      toast(`Failed to trigger run: ${e.message}`, 'error');
+      appendCmdLog(
+        buildRunYaml(selectedPolicy.name, selectedPolicy.namespace, 'failed'),
+        e.message,
+        true
+      );
+    }
+  }
+
+  async function triggerExport() {
+    try {
+      const r = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restore_point_name: selectedRP.id,
+          restore_point_namespace: selectedRP.namespace,
+          restore_point_time: selectedRP.scheduledTime || selectedRP.createdAt,
+          app_name: selectedRP.appName || selectedRP.appNamespace,
+          app_namespace: selectedRP.appNamespace || selectedRP.namespace,
+          policy_name: selectedPolicy.name,
+          policy_namespace: selectedPolicy.namespace,
+          location_profile_name: selectedProfile ? selectedProfile.name : '',
+          location_profile_namespace: selectedProfile ? selectedProfile.ns : ''
+        })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Unknown error');
+      toast(`Export action triggered: ${d.actionName}`, 'info');
+      addToLog({ kind: 'export', name: d.actionName, namespace: d.namespace });
+      appendCmdLog(
+        buildExportYaml(selectedRP, selectedPolicy, selectedProfile, d.actionName),
+        `exportaction/${d.actionName} created in ${d.namespace}`,
+        false
+      );
+      pollAction(d.actionName, d.namespace, 'export');
+    } catch (e) {
+      toast(`Failed to trigger export: ${e.message}`, 'error');
+      appendCmdLog(
+        buildExportYaml(selectedRP, selectedPolicy, selectedProfile, 'failed'),
+        e.message,
+        true
+      );
+    }
+  }
+
+  // ── Polling ───────────────────────────────────────────────────────────────
+  function pollAction(name, namespace, kind) {
+    if (activePollers[name]) return;
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/actions/${namespace}/${name}`);
+        const d = await r.json();
+        updateLogEntry(name, d.state, d.progress);
+        if (d.state === 'Complete' || d.state === 'Failed') {
+          clearInterval(interval);
+          delete activePollers[name];
+          toast(
+            `${kind === 'export' ? 'Export' : 'Run'} ${name}: ${d.state}`,
+            d.state === 'Complete' ? 'success' : 'error'
+          );
+        }
+      } catch {
+        // transient; keep polling
+      }
+    }, 5000);
+    activePollers[name] = interval;
+  }
+
+  // ── Log ───────────────────────────────────────────────────────────────────
+  function addToLog(entry) {
+    const log = document.getElementById('action-log');
+    // remove empty state if present
+    const empty = log.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const div = document.createElement('div');
+    div.className = `log-entry ${entry.kind === 'export' ? 'export' : ''}`;
+    div.id = `log-${entry.name}`;
+    div.innerHTML = `
+      <div class="log-header">
+        <div class="log-kind">${entry.kind}</div>
+        <div class="log-name">${entry.name}</div>
+        <div class="log-time">${new Date().toLocaleTimeString()}</div>
+      </div>
+      <div class="log-state">
+        <span class="state-badge state-running">RUNNING</span>
+        <span class="spinner"></span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+    `;
+    log.prepend(div);
+  }
+
+  function updateLogEntry(name, state, progress) {
+    const el = document.getElementById(`log-${name}`);
+    if (!el) return;
+    const badge = el.querySelector('.state-badge');
+    const fill  = el.querySelector('.progress-fill');
+    const spin  = el.querySelector('.spinner');
+    const stateClass = state === 'Complete' ? 'complete' : state === 'Failed' ? 'failed' : 'running';
+    badge.className = `state-badge state-${stateClass}`;
+    badge.textContent = state ? state.toUpperCase() : 'RUNNING';
+    if (fill && progress != null) fill.style.width = `${progress}%`;
+    if ((state === 'Complete' || state === 'Failed') && spin) spin.remove();
+    if (state === 'Complete') { el.classList.add('success'); el.classList.remove('export'); }
+    if (state === 'Failed')   { el.classList.add('error'); }
+  }
+
+  // ── Command output log ────────────────────────────────────────────────────
+  function yamlHighlight(yaml) {
+    return yaml
+      .split('\n')
+      .map(line => {
+        // comment lines
+        if (line.trim().startsWith('#')) return `<span class="yc">${line}</span>`;
+        // key: value
+        return line.replace(/^(\s*)(\S[^:]*)(: )(.*)$/, (_, indent, key, colon, val) => {
+          const valSpan = val.startsWith("'") || val.startsWith('"')
+            ? `<span class="ys">${val}</span>`
+            : `<span class="yv">${val}</span>`;
+          return `${indent}<span class="yk">${key}</span>${colon}${valSpan}`;
+        });
+      })
+      .join('\n');
+  }
+
+  function buildRunYaml(policyName, policyNamespace, actionName) {
+    return `# kubectl apply -f -
+apiVersion: actions.kio.kasten.io/v1alpha1
+kind: RunAction
+metadata:
+  generateName: cicd-run-${policyName}-
+  namespace: ${policyNamespace}
+spec:
+  subject:
+    apiVersion: config.kio.kasten.io/v1alpha1
+    kind: Policy
+    name: ${policyName}
+    namespace: ${policyNamespace}
+# → Created: ${actionName}`;
+  }
+
+  function buildExportYaml(rp, policy, profile, actionName) {
+    const rpNs = rp.namespace;
+    const profName = profile ? profile.name : '(from policy)';
+    const profNs   = profile ? profile.ns   : 'kasten-io';
+    return `# kubectl apply -f -
+apiVersion: actions.kio.kasten.io/v1alpha1
+kind: ExportAction
+metadata:
+  generateName: cicd-export-
+  namespace: ${rpNs}
+spec:
+  subject:
+    apiVersion: apps.kio.kasten.io/v1alpha1
+    kind: RestorePoint
+    name: ${rp.id}
+    namespace: ${rpNs}
+  exportData:
+    enabled: true
+  profile:
+    name: ${profName}
+    namespace: ${profNs}
+# → Policy: ${policy.name}
+# → Created: ${actionName}`;
+  }
+
+  function appendCmdLog(yaml, responseText, isError) {
+    const body = document.getElementById('cmd-body');
+    const empty = body.querySelector('.cmd-empty');
+    if (empty) empty.remove();
+
+    const entry = document.createElement('div');
+    entry.className = 'cmd-entry';
+    entry.innerHTML = `
+      <div class="cmd-prompt">
+        <span class="cmd-ts">[${new Date().toLocaleTimeString()}]</span>$ kubectl apply -f payload.yaml
+      </div>
+      <div class="cmd-yaml">${yamlHighlight(yaml)}</div>
+      <div class="cmd-response ${isError ? 'err' : 'ok'}">${isError ? '✕' : '✓'} ${responseText}</div>
+    `;
+    body.appendChild(entry);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function clearCmdLog() {
+    document.getElementById('cmd-body').innerHTML = '<div class="cmd-empty">◈ &nbsp; Waiting for actions...</div>';
+  }
+
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+  let allCleanupPoints = [];
+  let selectedRetire   = new Set();
+
+  async function loadCleanupPoints(policy) {
+    const list = document.getElementById('cleanup-list');
+    list.innerHTML = '<div class="empty-state"><div class="spinner"></div></div>';
+    selectedRetire.clear();
+    updateRetireBtn();
+    try {
+      const r = await fetch(`/api/policies/${policy.namespace}/${policy.name}/allrestorepoints`);
+      const d = await r.json();
+      // Only show those with no expiry
+      allCleanupPoints = d.restorePoints.filter(rp => !rp.hasExpiry);
+      renderCleanupList();
+    } catch (e) {
+      list.innerHTML = `<div class="empty-state">Error: ${e.message}</div>`;
+    }
+  }
+
+  function renderCleanupList() {
+    const showExports = document.getElementById('cleanup-show-exports').checked;
+    const filtered = showExports ? allCleanupPoints : allCleanupPoints.filter(rp => !rp.isExport);
+    const list = document.getElementById('cleanup-list');
+    if (!filtered.length) {
+      list.innerHTML = '<div class="empty-state"><div class="empty-icon">✓</div>No unexpired restore points found</div>';
+      return;
+    }
+    list.innerHTML = filtered.map(rp => `
+      <div class="cleanup-item ${selectedRetire.has(rp.id) ? 'selected' : ''}"
+           id="ci-${rp.id}" onclick="toggleRetireItem('${rp.id}')">
+        <input type="checkbox" ${selectedRetire.has(rp.id) ? 'checked' : ''}
+               onclick="event.stopPropagation();toggleRetireItem('${rp.id}')">
+        <div style="flex:1;min-width:0">
+          <div class="cleanup-name">${rp.id}</div>
+          <div class="cleanup-meta">ns: ${rp.namespace}${rp.appNamespace ? ' · app: '+rp.appNamespace : ''}${rp.exportProfile ? ' · profile: '+rp.exportProfile : ''}</div>
+        </div>
+        <span class="cleanup-badge ${rp.isExport ? 'badge-export' : 'badge-snap'}">${rp.isExport ? 'EXPORT' : 'SNAPSHOT'}</span>
+        <div class="cleanup-time">${new Date(rp.createdAt).toLocaleString()}</div>
+      </div>
+    `).join('');
+  }
+
+  function toggleRetireItem(id) {
+    if (selectedRetire.has(id)) selectedRetire.delete(id);
+    else selectedRetire.add(id);
+    const el = document.getElementById('ci-' + id);
+    if (el) {
+      el.classList.toggle('selected', selectedRetire.has(id));
+      el.querySelector('input').checked = selectedRetire.has(id);
+    }
+    updateRetireBtn();
+  }
+
+  function toggleSelectAll() {
+    const showExports = document.getElementById('cleanup-show-exports').checked;
+    const filtered = showExports ? allCleanupPoints : allCleanupPoints.filter(rp => !rp.isExport);
+    const allSelected = filtered.every(rp => selectedRetire.has(rp.id));
+    if (allSelected) {
+      filtered.forEach(rp => selectedRetire.delete(rp.id));
+    } else {
+      filtered.forEach(rp => selectedRetire.add(rp.id));
+    }
+    renderCleanupList();
+    updateRetireBtn();
+  }
+
+  function updateRetireBtn() {
+    const btn = document.getElementById('btn-retire');
+    const count = document.getElementById('retire-count');
+    btn.disabled = selectedRetire.size === 0;
+    count.textContent = selectedRetire.size > 0 ? `${selectedRetire.size} selected` : '';
+  }
+
+  function confirmRetire() {
+    if (!selectedRetire.size) return;
+    const names = [...selectedRetire].join(', ');
+    document.getElementById('dialog-title').textContent  = 'RETIRE RESTORE POINTS';
+    document.getElementById('dialog-body').innerHTML =
+      `Permanently retire <strong style="color:var(--red)">${selectedRetire.size}</strong> restore point(s)?<br><br>
+       This will delete the local snapshots and trigger garbage collection on the export location at the next GC run.<br><br>
+       <code>${[...selectedRetire].slice(0,3).join('<br>')}${selectedRetire.size > 3 ? '<br>…and '+(selectedRetire.size-3)+' more' : ''}</code>`;
+    document.getElementById('dialog-confirm').style.background = 'var(--red)';
+    pendingAction = { type: 'retire' };
+    document.getElementById('confirm-overlay').classList.add('visible');
+  }
+
+  async function executeRetire() {
+    const points = [...selectedRetire];
+    const rpMap = Object.fromEntries(allCleanupPoints.map(rp => [rp.id, rp]));
+    let succeeded = 0, failed = 0;
+    for (const id of points) {
+      const rp = rpMap[id];
+      if (!rp) continue;
+      try {
+        const r = await fetch('/api/retire', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            restore_point_name: rp.id,
+            restore_point_namespace: rp.namespace,
+          })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail);
+        succeeded++;
+        appendCmdLog(buildRetireYaml(rp, d.actionName), `retireaction/${d.actionName} created`, false);
+        // Remove from list
+        selectedRetire.delete(id);
+        allCleanupPoints = allCleanupPoints.filter(p => p.id !== id);
+      } catch (e) {
+        failed++;
+        appendCmdLog(buildRetireYaml(rp, 'failed'), e.message, true);
+      }
+    }
+    renderCleanupList();
+    updateRetireBtn();
+    if (succeeded) toast(`Retired ${succeeded} restore point(s)`, 'success');
+    if (failed)    toast(`${failed} retire action(s) failed`, 'error');
+    // Reset confirm button colour
+    document.getElementById('dialog-confirm').style.background = '';
+  }
+
+  function buildRetireYaml(rp, actionName) {
+    return `# Direct RestorePoint deletion — K10 GC cleans export location
+kubectl delete restorepoint ${rp.id} -n ${rp.namespace}
+# Type:     ${rp.isExport ? 'Export' : 'Snapshot'}
+# App:      ${rp.appNamespace || rp.namespace}
+# Created:  ${rp.createdAt}
+# → ${actionName}`;
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  function toast(msg, type = 'info') {
+    const icons = { success: '✓', error: '✕', info: '◈' };
+    const div = document.createElement('div');
+    div.className = `toast ${type}`;
+    div.innerHTML = `<span>${icons[type]||'◈'}</span> ${msg}`;
+    document.getElementById('toast-container').appendChild(div);
+    setTimeout(() => div.remove(), 5000);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+---
+# ── ServiceAccount ─────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kasten-cicd
+  namespace: kasten-cicd
+
+---
+# ── ClusterRole — access K10 CRDs via kube API ────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kasten-cicd
+rules:
+  # Read policies across all namespaces
+  - apiGroups: ["config.kio.kasten.io"]
+    resources: ["policies"]
+    verbs: ["get", "list", "watch"]
+  # Read profiles (in kasten-io namespace)
+  - apiGroups: ["config.kio.kasten.io"]
+    resources: ["profiles"]
+    verbs: ["get", "list"]
+  # Create + read run actions
+  - apiGroups: ["actions.kio.kasten.io"]
+    resources: ["runactions"]
+    verbs: ["get", "list", "create", "watch"]
+  # Create + read export actions
+  - apiGroups: ["actions.kio.kasten.io"]
+    resources: ["exportactions"]
+    verbs: ["get", "list", "create", "watch"]
+  # Read restore points cluster-wide (they live in app namespaces, not kasten-io)
+  - apiGroups: ["apps.kio.kasten.io"]
+    resources: ["restorepoints", "clusterrestorepoints"]
+    verbs: ["get", "list", "delete"]
+  # Create retire actions
+  - apiGroups: ["actions.kio.kasten.io"]
+    resources: ["retireactions"]
+    verbs: ["get", "list", "create", "watch"]
+
+---
+# ── ClusterRoleBinding ─────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kasten-cicd
+subjects:
+  - kind: ServiceAccount
+    name: kasten-cicd
+    namespace: kasten-cicd
+roleRef:
+  kind: ClusterRole
+  name: kasten-cicd
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ── Deployment ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kasten-cicd
+  namespace: kasten-cicd
+  labels:
+    app: kasten-cicd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kasten-cicd
+  template:
+    metadata:
+      labels:
+        app: kasten-cicd
+    spec:
+      serviceAccountName: kasten-cicd
+      containers:
+        - name: kasten-cicd
+          image: harbor.apps.openshift2.lab.home/homelab/kasten-cicd:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: K10_NAMESPACE
+              value: "kasten-io"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+# ── Service ────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: kasten-cicd
+  namespace: kasten-cicd
+spec:
+  selector:
+    app: kasten-cicd
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# ── Route (OpenShift) ──────────────────────────────────────────────────────────
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: kasten-cicd
+  namespace: kasten-cicd
+spec:
+  host: kasten-cicd.apps.openshift2.lab.home
+  to:
+    kind: Service
+    name: kasten-cicd
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
