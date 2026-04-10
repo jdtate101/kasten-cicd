@@ -1,5 +1,7 @@
 # Kasten CI/CD Trigger
 
+![UI](cicd.png)
+
 Manual on-demand trigger UI for Kasten K10 backup policies. Runs in-cluster on OpenShift, communicates directly with the Kubernetes API using a service account token — no K10 gateway auth required.
 
 ## Features
